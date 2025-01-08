@@ -8,7 +8,7 @@ const GetMaxid = async () => {
   } catch (err) {
     console.error("Error fetching maxId:", err);
   }
-}
+};
 
 const fetchData = async (proprity) => {
   const url = `https://hacker-news.firebaseio.com/v0/item/${proprity}.json`;
@@ -22,19 +22,19 @@ const fetchData = async (proprity) => {
     console.error("Error fetching data:", e);
     return null;
   }
-}
+};
 
 const getPosts = async (start, end) => {
   let Posts = [];
 
   for (let i = start; i >= end && i > 0; i--) {
-    const post = fetchData(i);
+    const post = await fetchData(i);
     if (post && post.type !== "comment") {
       Posts.push(post);
     }
   }
-  return Promise.all(Posts);
-}
+  return Posts;
+};
 
 const GetComments = async (id) => {
   let post = await fetchData(id);
@@ -42,11 +42,11 @@ const GetComments = async (id) => {
 
   if (post && post.kids) {
     for (let element of post.kids) {
-      let comment = fetchData(element);
+      let comment = await fetchData(element);
       if (comment) comments.push(comment);
     }
   }
-  return Promise.all(comments);
+  return comments;
 };
 
 const desplayPosts = async (valid = false) => {
@@ -60,63 +60,62 @@ const desplayPosts = async (valid = false) => {
   const start = maxId;
   const end = start - 100;
   const Posts = (await getPosts(start, end)).filter(post => post && post.type !== 'comment');
-  const content = document.getElementById("stories");
+  const content = document.getElementById("posts");
 
   if (!content) return;
 
   Posts.forEach(post => {
     const div = document.createElement("div");
     div.classList.add("post");
+    div.setAttribute("data-id", post.id);
     div.innerHTML = `
+    <h2>Posted by : ${post.by} </h2>
       <h3><a href="${post.url || "#"}" target="_blank">${post.title || "No Title"}</a></h3>
       <h6>${post.score || 0} points | type : ${post.type}</h6>
-      <p>Posted by ${post.by} | ${new Date(post.time * 1000).toLocaleString()} |</p>
-      ${post.kids >0?`<span class="click" onclick="DesplayComments(${post.id})">${post.kids ? post.kids.length : 0} comments</span>`:`<span class="click">${post.kids ? post.kids.length : 0} comments</span>`}
+      <p>${new Date(post.time * 1000).toLocaleString()}</p>
+      ${post.kids > 0 ? `<span class="click" onclick="toggleComments(${post.id})">${post.kids.length} comments</span>` : `<span class="click">0 comments</span>`}
     `;
     content.appendChild(div);
   });
-  const elements = document.getElementsByClassName("click");
 
-  elements.forEach(element => {
+  const elements = document.getElementsByClassName("click");
+  Array.from(elements).forEach(element => {
     element.style.cursor = "pointer";
   });
 };
 
-const DesplayComments = async (id) => {
-  const divs = document.querySelectorAll(".section");
-  divs.forEach(div => div.classList.remove("active"));
-  const divcoment = document.getElementById("comments");
-  divcoment.classList.add("active");
-  const post = await fetchData(id);
-  const comments = await GetComments(id);
+const toggleComments = async (postId) => {
+  const postDiv = document.querySelector(`.post[data-id='${postId}']`);
+  const commentSection = postDiv.querySelector(".comments");
 
-  if (!post || !divcoment) return;
+  if (commentSection) {
+    commentSection.remove();
+    return;
+  }
 
-  divcoment.innerHTML = `
-    <div class="post">
-      <h3><a href="${post.url || "#"}" target="_blank">${post.title || "No Title"}</a></h3>
-      <h6>${post.score || 0} points | type : ${post.type}</h6>
-      <p>Posted by ${post.by} | ${new Date(post.time * 1000).toLocaleString()}</p>
-    </div>
-  `;
+  const newCommentSection = document.createElement("div");
+  newCommentSection.classList.add("comments");
 
+  const comments = await GetComments(postId);
   comments.forEach(comment => {
-    const div = document.createElement("div");
-    div.innerHTML = `
-      <h6>${comment.score || 0} points | type : ${comment.type}</h6>
-      <p>Posted by ${comment.by} | ${new Date(comment.time * 1000).toLocaleString()}</p>
-      <hr>
+    const commentDiv = document.createElement("div");
+    commentDiv.classList.add("comment");
+    commentDiv.innerHTML = `
+      <p><strong>${comment.by}</strong> said:</p>
+      <p>${comment.text}</p>
     `;
-    divcoment.appendChild(div);
+    newCommentSection.appendChild(commentDiv);
   });
-}
+
+  postDiv.appendChild(newCommentSection);
+};
 
 let isLoading = false;
 
 window.addEventListener('scroll', () => {
   if (window.innerHeight + window.scrollY >= document.body.offsetHeight && !isLoading) {
     isLoading = true;
-    desplayPosts(isLoading).finally(() => {
+    desplayPosts(true).finally(() => {
       isLoading = false;
     });
   }
@@ -134,7 +133,6 @@ setInterval(async () => {
   }
 }, 5000);
 
-
 const gate = async () => {
   const loader = document.createElement("div");
   loader.id = "loader";
@@ -145,6 +143,6 @@ const gate = async () => {
   await desplayPosts();
   loader.style.display = "none";
   document.body.removeChild(loader);
-}
+};
 
 gate();
